@@ -1,5 +1,51 @@
+import os
+import sys
+import logging
+
+# Проверяем и устанавливаем зависимости при первом запуске
+def check_dependencies():
+    """Проверяет наличие зависимостей и предлагает их установить"""
+    missing_deps = []
+    
+    try:
+        import pydub
+    except ImportError:
+        missing_deps.append("pydub")
+    
+    try:
+        from moviepy import VideoFileClip
+    except ImportError:
+        missing_deps.append("moviepy")
+    
+    try:
+        import vosk
+    except ImportError:
+        missing_deps.append("vosk")
+    
+    # Проверяем наличие модели Vosk
+    if not os.path.exists("vosk-model") or not os.listdir("vosk-model"):
+        missing_deps.append("vosk-model")
+    
+    if missing_deps:
+        print("❌ Обнаружены недостающие зависимости:")
+        for dep in missing_deps:
+            print(f"   - {dep}")
+        print()
+        print("🛠️  Для автоматической установки запустите:")
+        print("   python auto_setup.py")
+        print()
+        print("📚 Или установите вручную:")
+        print("   pip install -r requirements.txt")
+        if "vosk-model" in missing_deps:
+            print("   и скачайте модель Vosk из https://alphacephei.com/vosk/models/")
+        
+        sys.exit(1)
+
+# Проверяем зависимости перед импортом
+check_dependencies()
+
 import pydub
-from moviepy.editor import *
+from moviepy import VideoFileClip, CompositeVideoClip, ColorClip, concatenate_videoclips, vfx
 import vosk
 import json
 
@@ -81,14 +127,22 @@ def speed_up(video, clip, non_silences, i):
     video_piece = video.subclip(start, end).without_audio()
     audio_piece = clip.audio
 
-    r = video_piece.fx(vfx.speedx, video_piece.duration / audio_piece.duration)
-    r = r.set_audio(audio_piece)
+    r = video_piece.with_effects([vfx.MultiplySpeed(video_piece.duration / audio_piece.duration)])
+    r = r.with_audio(audio_piece)
 
     return r
 
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s'
+)
+
+logger = logging.getLogger(__name__)
+
+
 # объявляем переменные
-video = VideoFileClip('res/2024-06-07 17-55-52.mp4')
+video = VideoFileClip('res/Timeline 1.mp4')
 rec = vosk.KaldiRecognizer(vosk.Model('vosk-model'), 16000)
 
 
@@ -121,10 +175,10 @@ video = concatenate_videoclips(result)
 
 
 # создаем фон
-video = video.resize(1.25)
-left_part = video.crop(x1=0, y1=0, x2=1080, y2=1440)
+video = video.resized(1.25)
+left_part = video.with_effects([vfx.Crop(x1=0, y1=0, x2=1080, y2=1440)])
 background = ColorClip((1080, 1920), color=(28, 31, 32), duration=video.duration)
-final_video = CompositeVideoClip([background, left_part.set_position(("center", "center"))])
+final_video = CompositeVideoClip([background, left_part.with_position(("center", "center"))])
 
 
 final_video.write_videofile('exp.mp4')
