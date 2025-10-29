@@ -4,3 +4,5 @@ venv/
 __pycache__/
 res/
 vosk-model/
+*.mp4
+*.mov
