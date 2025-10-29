@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import logging
 
 from moviepy import VideoFileClip
@@ -10,6 +10,7 @@ from src.services.audio_service import find_silence, get_non_silences
 from src.services.stt_service import VoskSttService
 from src.services.video_service import split_to_clips, speed_up_segment, concat
 from src.services.layout_service import compose_vertical
+from src.services.preview_service import configure_crop_interactive, get_default_crop_for_vertical
 
 
 def run_pipeline(
@@ -21,9 +22,10 @@ def run_pipeline(
     model_path: str = "vosk-model",
     sample_rate: int = 16000,
     interactive: bool = True,
+    configure_crop: bool = False,
     bg_color: Tuple[int, int, int] = (28, 31, 32),
     out_size: Tuple[int, int] = (1080, 1920),
-    crop_box: Tuple[int, int, int, int] = (0, 0, 1080, 1440),
+    crop_box: Optional[Tuple[int, int, int, int]] = None,
     scale: float = 1.25,
 ) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
@@ -33,6 +35,16 @@ def run_pipeline(
     video = VideoFileClip(input_path)
 
     try:
+        # Настройка кропа, если требуется
+        final_crop_box = crop_box
+        if configure_crop:
+            logger.info("Настройка области кропа...")
+            final_crop_box = configure_crop_interactive(video, time_seconds=10.0)
+            logger.info("Выбран кроп: %s", final_crop_box)
+        elif crop_box is None:
+            # Автоматический кроп для вертикального видео
+            final_crop_box = get_default_crop_for_vertical(video.w, video.h)
+            logger.info("Авто-кроп для вертикального видео: %s", final_crop_box)
         logger.info("Детекция тишины...")
         silences = find_silence(video, silence_threshold_db, min_silence_ms)
         logger.info("Тишин найдено: %d", len(silences))
@@ -81,7 +93,9 @@ def run_pipeline(
         merged = concat(result_parts)
 
         logger.info("Компоновка вертикального видео...")
-        composed = compose_vertical(merged, bg_color=bg_color, out_size=out_size, crop_box=crop_box, scale=scale)
+        # final_crop_box гарантированно не None после инициализации выше
+        assert final_crop_box is not None
+        composed = compose_vertical(merged, bg_color=bg_color, out_size=out_size, crop_box=final_crop_box, scale=scale)
 
         logger.info("Экспорт: %s", output_path)
         composed.write_videofile(output_path)

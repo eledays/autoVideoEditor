@@ -16,6 +16,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model-path", default="vosk-model", help="Путь к модели Vosk")
     p.add_argument("--sample-rate", type=int, default=16000, help="Частота дискретизации для распознавания")
     p.add_argument("--no-interactive", action="store_true", help="Не спрашивать, какие сегменты удалять")
+    p.add_argument("--configure-crop", action="store_true", help="Интерактивная настройка области кропа")
     return p
 
 
@@ -30,6 +31,7 @@ def main() -> None:
         model_path=args.model_path,
         sample_rate=args.sample_rate,
         interactive=not args.no_interactive,
+        configure_crop=args.configure_crop,
     )
 
 
